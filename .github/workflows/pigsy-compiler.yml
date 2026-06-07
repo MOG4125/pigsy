@@ -6,6 +6,7 @@ on:
       - '**.pd'
       - 'config.json'
       - '.github/workflows/pigsy-apps-with-ui.yml'
+  workflow_dispatch: # FIXED: Adds the manual "Run workflow" drop-down rerun button on GitHub
 
 jobs:
   # 1. WINDOWS MACHINE (.EXE ONLY)
@@ -127,4 +128,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.BINARY_NAME }}-Linux-App
-        path: build/compiled_source/cmake-build/${{ env.BINARY_NAME }}
+        path: |
+          build/compiled_source/cmake-build/*Standalone
+          build/compiled_source/cmake-build/${{ env.BINARY_NAME }}
+          build/compiled_source/cmake-build/Release/*
