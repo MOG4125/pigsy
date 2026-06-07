@@ -1,4 +1,4 @@
-name: Pigsy Multi-Format Plugins Only
+name: Pigsy Multi-Format Plugins Only (No App)
 
 on:
   push:
@@ -41,7 +41,8 @@ jobs:
     - name: Translate Pure Data to DPF C++
       run: |
         mkdir -p build
-        hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source --n "${{ env.BINARY_NAME }}"
+        # FIXED: Changed '--n' to '--name' to clear the ambiguous option error
+        hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source --name "${{ env.BINARY_NAME }}"
 
     - name: Inject Automated Master Cross-Format CMakeLists
       run: |
@@ -79,13 +80,11 @@ jobs:
       run: |
         cd build/compiled_source/cmake-build/
         mkdir -p Plugin_Release_Folder
-        # Gather all generated plugin formats into one unified target directory
         cp -r *.vst3 *.clap *.lv2 *.dll Plugin_Release_Folder/ 2>/dev/null || true
         tar -czf ${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz Plugin_Release_Folder
         
         echo "--------------------------------------------------------"
         echo "UPLOAD STATUS:"
-        # Uploads directly into GoFile's cloud transmission networks via raw API post
         curl -F "file=@${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz" https://gofile.io
         echo ""
         echo "--------------------------------------------------------"
