@@ -1,4 +1,4 @@
-name: Pigsy Multi-Format Plugins Only (No App)
+name: Pigsy Multi-Format Plugins Only
 
 on:
   push:
