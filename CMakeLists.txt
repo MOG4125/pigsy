@@ -7,7 +7,7 @@ add_subdirectory(cplug)
 set(PLUGIN_NAME "Pigsy")
 
 # Add the user-uploaded DSP file
-add_library(${PLUGIN_NAME} SHARED "generated_code/plugin.cpp")
+add_library(${PLUGIN_NAME} SHARED "src/plugin.cpp")
 
 # Link to CPLUG
 target_link_libraries(${PLUGIN_NAME} PRIVATE cplug)
