@@ -1,139 +1,91 @@
-name: Pigsy Standalone Apps Only (With UI)
+name: Pigsy Multi-Format Plugins Only (No App)
 
 on:
   push:
     paths:
       - '**.pd'
       - 'config.json'
-      - '.github/workflows/pigsy-apps-with-ui.yml'
+      - '.github/workflows/pigsy-compiler.yml'
   workflow_dispatch:
 
-jobs: # This fixes your error by grouping all the separate builds together
-  # 1. WINDOWS SUITE (.EXE ONLY)
-  build-windows-app:
-    name: Build Windows App Only
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install Toolchain
-      run: pip install hvcc
-    - name: Parse Configuration Maps
-      shell: bash
-      run: |
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['target_patch_file'])")
-        NAME="${PATCH%.*}"
-        echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
-        echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
-    - name: Translate to JUCE C++ (UI Supported)
-      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
-    - name: Package Embedded UI Images
-      shell: bash
-      run: |
-        mkdir -p build/compiled_source/resources
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile Windows EXE App
-      shell: cmd
-      run: |
-        cd build\compiled_source && mkdir cmake-build && cd cmake-build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --config Release --target ${{ env.BINARY_NAME }}_Standalone
-    - name: Upload Windows Standalone App
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.BINARY_NAME }}-Windows-App
-        path: build/compiled_source/cmake-build/Release/*.exe
-
-  # 2. MACOS SUITE (.APP ONLY)
-  build-mac-app:
-    name: Build macOS App Only
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install Toolchain
-      run: pip install hvcc
-    - name: Parse Configuration Maps
-      run: |
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['target_patch_file'])")
-        NAME="${PATCH%.*}"
-        echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
-        echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
-    - name: Translate to JUCE C++
-      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
-    - name: Package Images
-      run: |
-        mkdir -p build/compiled_source/resources
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile macOS Standalone App
-      run: |
-        cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make ${{ env.BINARY_NAME }}_Standalone -j2
-    - name: Upload macOS Standalone App
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.BINARY_NAME }}-macOS-App
-        path: build/compiled_source/cmake-build/*.app
-
-  # 3. LINUX SUITE (NATIVE EXECUTABLE ONLY WITH EXTERNAL PUBLIC LINK)
-  build-linux-app:
-    name: Build Linux App Only
+jobs:
+  build-plugins:
+    name: Compile DAW Plugins
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
+
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - name: Install Linux Graphic System Dependencies
+
+    - name: Install System Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev jq curl
+        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev jq curl
+
     - name: Install Toolchain
       run: pip install hvcc
-    - name: Parse Configuration Maps
+
+    - name: Parse Configuration Names
       run: |
         FOLDER=$(jq -r '.folder_path' config.json)
         PATCH=$(jq -r '.target_patch_file' config.json)
         NAME="${PATCH%.*}"
+        echo "TARGET_DIR=$FOLDER" >> $GITHUB_ENV
         echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
         echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
-    - name: Translate to JUCE C++
-      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
-    - name: Package Images
+
+    - name: Translate Pure Data to DPF C++
       run: |
-        mkdir -p build/compiled_source/resources
-        FOLDER=$(jq -r '.folder_path' config.json)
-        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile Linux Standalone App
+        mkdir -p build
+        hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source --n "${{ env.BINARY_NAME }}"
+
+    - name: Inject Automated Master Cross-Format CMakeLists
+      run: |
+        cat << EOF > build/compiled_source/CMakeLists.txt
+        cmake_minimum_required(VERSION 3.15)
+        project(${{ env.BINARY_NAME }}_plugin VERSION 1.0.0 LANGUAGES CXX C)
+        set(CMAKE_CXX_STANDARD 14)
+        include_directories(c)
+        file(GLOB_RECURSE SOURCES "c/*.cpp" "c/*.c")
+        
+        # 1. VST3 File Format Output
+        add_library(${{ env.BINARY_NAME }}_vst3 SHARED \${SOURCES})
+        set_target_properties(${{ env.BINARY_NAME }}_vst3 PROPERTIES PREFIX "" SUFFIX ".vst3")
+        
+        # 2. CLAP File Format Output
+        add_library(${{ env.BINARY_NAME }}_clap SHARED \${SOURCES})
+        set_target_properties(${{ env.BINARY_NAME }}_clap PROPERTIES PREFIX "" SUFFIX ".clap")
+        
+        # 3. LV2 File Format Output
+        add_library(${{ env.BINARY_NAME }}_lv2 SHARED \${SOURCES})
+        set_target_properties(${{ env.BINARY_NAME }}_lv2 PROPERTIES PREFIX "" SUFFIX ".lv2")
+        
+        # 4. VST2 Legacy DLL File Format Output
+        add_library(${{ env.BINARY_NAME }}_vst2 SHARED \${SOURCES})
+        set_target_properties(${{ env.BINARY_NAME }}_vst2 PROPERTIES PREFIX "" SUFFIX ".dll")
+        EOF
+
+    - name: Compile Cross-Platform Plugin Matrix
       run: |
         cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        make ${{ env.BINARY_NAME }}_Standalone -j$(nproc)
-    
-    # Compresses and automatically pushes the compiled file directly to a cloud web-sharing link
-    - name: Push App to Free Public Download Link
+        make -j$(nproc)
+
+    - name: Bundle and Push Plugins to Free Public Download Link
       run: |
         cd build/compiled_source/cmake-build/
-        mkdir -p Linux_Release_Folder
-        cp -r * Linux_Release_Folder/ 2>/dev/null || true
-        tar -czf ${{ env.BINARY_NAME }}_Linux_Desktop.tar.gz Linux_Release_Folder
+        mkdir -p Plugin_Release_Folder
+        # Gather all generated plugin formats into one unified target directory
+        cp -r *.vst3 *.clap *.lv2 *.dll Plugin_Release_Folder/ 2>/dev/null || true
+        tar -czf ${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz Plugin_Release_Folder
+        
         echo "--------------------------------------------------------"
         echo "UPLOAD STATUS:"
-        curl -F "file=@${{ env.BINARY_NAME }}_Linux_Desktop.tar.gz" https://gofile.io
+        # Uploads directly into GoFile's cloud transmission networks via raw API post
+        curl -F "file=@${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz" https://gofile.io
         echo ""
         echo "--------------------------------------------------------"
