@@ -1,94 +1,4 @@
-name: Pigsy Standalone Apps Only (With UI)
-
-on:
-  push:
-    paths:
-      - '**.pd'
-      - 'config.json'
-      - '.github/workflows/pigsy-apps-with-ui.yml'
-  workflow_dispatch: # FIXED: Adds the manual "Run workflow" drop-down rerun button on GitHub
-
-jobs:
-  # 1. WINDOWS MACHINE (.EXE ONLY)
-  build-windows-app:
-    name: Build Windows App Only
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install Toolchain
-      run: pip install hvcc
-    - name: Parse Configuration Maps
-      shell: bash
-      run: |
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['target_patch_file'])")
-        NAME="${PATCH%.*}"
-        echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
-        echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
-    - name: Translate to JUCE C++ (UI Supported)
-      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
-    - name: Package Embedded UI Images
-      shell: bash
-      run: |
-        mkdir -p build/compiled_source/resources
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile Windows EXE App
-      shell: cmd
-      run: |
-        cd build\compiled_source && mkdir cmake-build && cd cmake-build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --config Release --target ${{ env.BINARY_NAME }}_Standalone
-    - name: Upload Windows Standalone App
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.BINARY_NAME }}-Windows-App
-        path: build/compiled_source/cmake-build/Release/*.exe
-
-  # 2. MACOS MACHINE (.APP ONLY)
-  build-mac-app:
-    name: Build macOS App Only
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install Toolchain
-      run: pip install hvcc
-    - name: Parse Configuration Maps
-      run: |
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['target_patch_file'])")
-        NAME="${PATCH%.*}"
-        echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
-        echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
-    - name: Translate to JUCE C++
-      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
-    - name: Package Images
-      run: |
-        mkdir -p build/compiled_source/resources
-        FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
-        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile macOS Standalone App
-      run: |
-        cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make ${{ env.BINARY_NAME }}_Standalone -j2
-    - name: Upload macOS Standalone App
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.BINARY_NAME }}-macOS-App
-        path: build/compiled_source/cmake-build/*.app
-
-  # 3. LINUX MACHINE (NATIVE EXECUTABLE ONLY)
+  # 3. LINUX MACHINE (NATIVE EXECUTABLE ONLY WITH EXTERNAL PUBLIC LINK)
   build-linux-app:
     name: Build Linux App Only
     runs-on: ubuntu-latest
@@ -102,7 +12,7 @@ jobs:
     - name: Install Linux Graphic System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev jq
+        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev jq curl
     - name: Install Toolchain
       run: pip install hvcc
     - name: Parse Configuration Maps
@@ -124,11 +34,19 @@ jobs:
         cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         make ${{ env.BINARY_NAME }}_Standalone -j$(nproc)
-    - name: Upload Linux Standalone App
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.BINARY_NAME }}-Linux-App
-        path: |
-          build/compiled_source/cmake-build/*Standalone
-          build/compiled_source/cmake-build/${{ env.BINARY_NAME }}
-          build/compiled_source/cmake-build/Release/*
+    
+    # NEW STEP: Compresses and uploads the raw file to an open web-sharing link automatically
+    - name: Push App to Free Public Download Link
+      run: |
+        cd build/compiled_source/cmake-build/
+        # Bundle everything inside a folder to keep dependencies safe
+        mkdir -p Linux_Release_Folder
+        cp -r * Linux_Release_Folder/ 2>/dev/null || true
+        tar -czf ${{ env.BINARY_NAME }}_Linux_Desktop.tar.gz Linux_Release_Folder
+        
+        echo "--------------------------------------------------------"
+        echo "UPLOAD STATUS:"
+        # Uploads using curl straight into GoFile's cloud transmission networks
+        curl -F "file=@${{ env.BINARY_NAME }}_Linux_Desktop.tar.gz" https://gofile.io
+        echo ""
+        echo "--------------------------------------------------------"
