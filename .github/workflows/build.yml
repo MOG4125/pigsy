@@ -14,20 +14,20 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Manual Submodule Init
-        run: |
-          git submodule update --init --recursive
-          ls -R  # This will list files to confirm cplug exists
+        with:
+          submodules: recursive
 
       - name: Build
         run: |
-          mkdir build && cd build
-          cmake ..
-          cmake --build . --config Release
+          cmake -B build
+          cmake --build build --config Release
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Pigsy-Plugin-${{ matrix.os }}
-          path: build/
+          path: |
+            build/Release/
+            build/**/*.so
+            build/**/*.dll
+            build/**/*.dylib
