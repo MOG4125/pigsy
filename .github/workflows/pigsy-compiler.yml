@@ -1,0 +1,60 @@
+name: Pigsy Plugin Compiler
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-vst3:
+    name: Build VST3/CLAP Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code Base
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install System Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev jq
+
+    - name: Install Heavy Compiler Collection (hvcc)
+      run: |
+        pip install --upgrade pip
+        pip install hvcc
+
+    - name: Extract Dynamic Target Patch From Config
+      id: parse_config
+      run: |
+        # Read target_patch_file from config.json using jq
+        PATCH_NAME=$(jq -r '.target_patch_file' config.json)
+        echo "FOUND_PATCH=$PATCH_NAME" >> $GITHUB_ENV
+        echo "Successfully mapped target patch file to: $PATCH_NAME"
+
+    - name: Process Configuration and Execute Build
+      run: |
+        mkdir -p build
+        # Run Heavy compiler using the dynamically extracted patch variable
+        python3 -m hvcc "${{ env.FOUND_PATCH }}" -g dpf -o build/compiled_source
+        
+    - name: Compile C++ Source Code to VST3
+      run: |
+        cd build/compiled_source
+        mkdir -p cmake-build && cd cmake-build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+
+    - name: Gather and Upload Compiled VST3 Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Pigsy-Compiled-Plugins
+        path: build/compiled_source/cmake-build/*.vst3
