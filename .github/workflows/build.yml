@@ -11,12 +11,25 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    steps:
+steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - name: Initialize Submodules
+        run: git submodule update --init --recursive  # <--- THIS IS THE MISSING STEP
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake ..
+          cmake --build . --config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pigsy-Plugin-${{ matrix.os }}
+          path: build/
       - name: Build
         run: |
           mkdir build && cd build
