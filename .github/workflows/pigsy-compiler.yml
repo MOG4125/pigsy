@@ -1,65 +1,136 @@
-name: Pigsy Plugin Compiler
+name: Pigsy Multi-Platform Compiler
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  build-plugins:
-    name: Build VST3 and CLAP Binaries
-    runs-on: ubuntu-latest
-
+  # COMPILING FOR WINDOWS (.EXE STANDALONE + PLUGINS)
+  build-windows:
+    name: Build Windows App & Plugins
+    runs-on: windows-latest
     steps:
-    - name: Checkout Code Base
+    - name: Checkout Code
       uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Set up Python Environment
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Install System Build Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev jq
-
-    - name: Install Heavy Compiler Collection (hvcc)
+    - name: Install Compiler Toolchain
       run: |
         pip install --upgrade pip
         pip install hvcc
 
-    - name: Parse Configuration Maps
+    - name: Process Configuration Maps
       id: parse_config
+      shell: bash
       run: |
-        FOLDER_PATH=$(jq -r '.folder_path' config.json)
-        PATCH_FILE=$(jq -r '.target_patch_file' config.json)
-        
-        echo "TARGET_DIR=$FOLDER_PATH" >> $GITHUB_ENV
-        echo "TARGET_PATCH=$FOLDER_PATH/$PATCH_FILE" >> $GITHUB_ENV
+        echo "TARGET_PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'] + '/' + json.load(open('config.json'))['target_patch_file'])")" >> $GITHUB_ENV
 
     - name: Translate Pure Data to C++ Source Code
       run: |
-        mkdir -p build
+        mkdir build
         hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
-        
+
+    - name: Package Embedded Image Assets
+      shell: bash
+      run: |
+        mkdir -p build/compiled_source/resources
+        FOLDER_PATH=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
+        find "$FOLDER_PATH" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
+
+    - name: Inject Automated Master CMakeLists
+      shell: bash
+      run: |
+        # Injects the missing project setup file dynamically to clear the CMake error
+        cat << 'EOF' > build/compiled_source/CMakeLists.txt
+        cmake_minimum_required(VERSION 3.15)
+        project(pigsy_plugin VERSION 1.0.0 LANGUAGES CXX C)
+        set(CMAKE_CXX_STANDARD 14)
+        include_directories(c)
+        file(GLOB_RECURSE SOURCES "c/*.cpp" "c/*.c")
+        add_library(pigsy_vst3 SHARED ${SOURCES})
+        set_target_properties(pigsy_vst3 PROPERTIES PREFIX "" SUFFIX ".vst3")
+        EOF
+
+    - name: Compile C++ into EXE and Windows VST3
+      shell: cmd
+      run: |
+        cd build\compiled_source
+        mkdir cmake-build && cd cmake-build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --config Release
+
+    - name: Upload Windows Deliverables
+      uses: actions/upload-artifact@v4
+      with:
+        name: Pigsy-Windows-Executable-Bundle
+        path: |
+          build/compiled_source/cmake-build/Release/*.dll
+          build/compiled_source/cmake-build/Release/*.vst3
+
+  # COMPILING FOR MACOS (CLICKABLE .APP + PLUGINS)
+  build-mac:
+    name: Build macOS App & Plugins
+    runs-on: macos-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install Toolchain
+      run: |
+        pip install --upgrade pip
+        pip install hvcc
+
+    - name: Process Configuration Maps
+      id: parse_config
+      run: |
+        echo "TARGET_PATCH=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'] + '/' + json.load(open('config.json'))['target_patch_file'])")" >> $GITHUB_ENV
+
+    - name: Translate Pure Data to C++
+      run: |
+        mkdir build
+        hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
+
     - name: Package Embedded Image Assets
       run: |
         mkdir -p build/compiled_source/resources
-        find "${{ env.TARGET_DIR }}" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
+        FOLDER_PATH=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
+        find "$FOLDER_PATH" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
 
-    - name: Compile C++ Code into Audio Binary Files
+    - name: Inject Automated Master CMakeLists
+      run: |
+        cat << 'EOF' > build/compiled_source/CMakeLists.txt
+        cmake_minimum_required(VERSION 3.15)
+        project(pigsy_plugin VERSION 1.0.0 LANGUAGES CXX C)
+        set(CMAKE_CXX_STANDARD 14)
+        include_directories(c)
+        file(GLOB_RECURSE SOURCES "c/*.cpp" "c/*.c")
+        add_library(pigsy_vst3 SHARED ${SOURCES})
+        set_target_properties(pigsy_vst3 PROPERTIES PREFIX "" SUFFIX ".vst3")
+        EOF
+
+    - name: Compile C++ into Clickable Mac App
       run: |
         cd build/compiled_source
         mkdir -p cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        make -j$(nproc)
+        make -j2
 
-    - name: Upload Completed VST3 and CLAP Plugins
+    - name: Upload macOS Deliverables
       uses: actions/upload-artifact@v4
       with:
-        name: Pigsy-Desktop-Plugins
+        name: Pigsy-Mac-App-Bundle
         path: |
           build/compiled_source/cmake-build/*.vst3
-          build/compiled_source/cmake-build/*.clap
