@@ -41,7 +41,6 @@ jobs:
     - name: Translate Pure Data to DPF C++
       run: |
         mkdir -p build
-        # FIXED: Changed '--n' to '--name' to clear the ambiguous option error
         hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source --name "${{ env.BINARY_NAME }}"
 
     - name: Inject Automated Master Cross-Format CMakeLists
@@ -84,7 +83,9 @@ jobs:
         tar -czf ${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz Plugin_Release_Folder
         
         echo "--------------------------------------------------------"
-        echo "UPLOAD STATUS:"
+        echo "PIGSY UPLOAD SUITE:"
+        # Targets GoFile's global content ingestion framework endpoint
         curl -F "file=@${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz" https://gofile.io
         echo ""
         echo "--------------------------------------------------------"
+g
