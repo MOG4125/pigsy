@@ -1,4 +1,4 @@
-name: Pigsy Standalone Apps & Plugins (With UI)
+name: Pigsy Standalone Apps Only (With UI)
 
 on:
   push:
@@ -8,8 +8,9 @@ on:
       - '.github/workflows/pigsy-apps-with-ui.yml'
 
 jobs:
-  build-windows-suite:
-    name: Build Windows App Suite
+  # 1. WINDOWS MACHINE (.EXE ONLY)
+  build-windows-app:
+    name: Build Windows App Only
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -36,23 +37,21 @@ jobs:
         mkdir -p build/compiled_source/resources
         FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
         find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile Windows Deliverables
+    - name: Compile Windows EXE App
       shell: cmd
       run: |
         cd build\compiled_source && mkdir cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --config Release
-    - name: Upload Windows Interactive Deliverables
+        cmake --build . --config Release --target ${{ env.BINARY_NAME }}_Standalone
+    - name: Upload Windows Standalone App
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.BINARY_NAME }}-Windows-UI-Package
-        path: |
-          build/compiled_source/cmake-build/Release/*.exe
-          build/compiled_source/cmake-build/Release/*.vst3
-          build/compiled_source/cmake-build/Release/*.clap
+        name: ${{ env.BINARY_NAME }}-Windows-App
+        path: build/compiled_source/cmake-build/Release/*.exe
 
-  build-mac-suite:
-    name: Build macOS App Suite
+  # 2. MACOS MACHINE (.APP ONLY)
+  build-mac-app:
+    name: Build macOS App Only
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
@@ -77,16 +76,55 @@ jobs:
         mkdir -p build/compiled_source/resources
         FOLDER=$(python3 -c "import json; print(json.load(open('config.json'))['folder_path'])")
         find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-    - name: Compile macOS Applications
+    - name: Compile macOS Standalone App
       run: |
         cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        make -j2
-    - name: Upload macOS Interactive Deliverables
+        make ${{ env.BINARY_NAME }}_Standalone -j2
+    - name: Upload macOS Standalone App
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.BINARY_NAME }}-macOS-UI-Package
-        path: |
-          build/compiled_source/cmake-build/*.app
-          build/compiled_source/cmake-build/*.vst3
-          build/compiled_source/cmake-build/*.clap
+        name: ${{ env.BINARY_NAME }}-macOS-App
+        path: build/compiled_source/cmake-build/*.app
+
+  # 3. LINUX MACHINE (NATIVE EXECUTABLE ONLY)
+  build-linux-app:
+    name: Build Linux App Only
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Install Linux Graphic System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev jq
+    - name: Install Toolchain
+      run: pip install hvcc
+    - name: Parse Configuration Maps
+      run: |
+        FOLDER=$(jq -r '.folder_path' config.json)
+        PATCH=$(jq -r '.target_patch_file' config.json)
+        NAME="${PATCH%.*}"
+        echo "TARGET_PATCH=$FOLDER/$PATCH" >> $GITHUB_ENV
+        echo "BINARY_NAME=$NAME" >> $GITHUB_ENV
+    - name: Translate to JUCE C++
+      run: hvcc "${{ env.TARGET_PATCH }}" -g juce -o build/compiled_source --n "${{ env.BINARY_NAME }}"
+    - name: Package Images
+      run: |
+        mkdir -p build/compiled_source/resources
+        FOLDER=$(jq -r '.folder_path' config.json)
+        find "$FOLDER" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
+    - name: Compile Linux Standalone App
+      run: |
+        cd build/compiled_source && mkdir -p cmake-build && cd cmake-build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make ${{ env.BINARY_NAME }}_Standalone -j$(nproc)
+    - name: Upload Linux Standalone App
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.BINARY_NAME }}-Linux-App
+        path: build/compiled_source/cmake-build/${{ env.BINARY_NAME }}
