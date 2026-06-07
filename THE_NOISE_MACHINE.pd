@@ -1,0 +1,86 @@
+#N canvas 50 50 1200 800 10;
+
+#X obj 50 50 tgl 30 0 empty empty POWER 0 -8 0 12 -262144 -1 -1 0 1;
+
+#X obj 50 120 hsl 250 20 0 1 0 0 empty empty NOISE_AMOUNT -2 -8 0 10 -262144 -1 -1 12500 1;
+
+#X obj 50 180 hsl 250 20 0 1 0 0 empty empty SCRATCH_AMOUNT -2 -8 0 10 -262144 -1 -1 0 1;
+
+#X obj 50 50 s power;
+#X obj 50 120 s noiseamt;
+#X obj 50 180 s scratchamt;
+
+#X obj 450 50 noise~;
+
+#X obj 450 100 lop~ 400;
+#X obj 450 140 *~ 0.4;
+
+#X obj 650 100 hip~ 5000;
+#X obj 650 140 *~ 0.4;
+
+#X obj 850 50 noise~;
+#X obj 850 90 abs~;
+#X obj 850 130 threshold~ 0.995 0 0.995 0;
+#X obj 850 170 vline~;
+#X msg 920 170 1 1 , 0 20 1;
+#X obj 850 210 *~;
+#X obj 850 250 *~ 0.7;
+
+#X obj 550 300 +~;
+#X obj 700 300 +~;
+
+#X obj 650 350 +~;
+
+#X obj 300 300 r noiseamt;
+#X obj 300 340 r scratchamt;
+#X obj 300 380 +;
+#X obj 300 420 sig~;
+
+#X obj 650 400 *~;
+
+#X obj 250 500 r power;
+#X obj 250 540 sig~;
+
+#X obj 650 460 *~;
+
+#X obj 650 520 dac~;
+
+#X connect 6 0 7 0;
+#X connect 6 0 9 0;
+
+#X connect 7 0 8 0;
+#X connect 9 0 10 0;
+
+#X connect 11 0 12 0;
+#X connect 12 0 13 0;
+
+#X connect 13 0 15 0;
+#X connect 15 0 14 0;
+
+#X connect 11 0 16 0;
+#X connect 14 0 16 1;
+
+#X connect 16 0 17 0;
+
+#X connect 8 0 18 0;
+#X connect 10 0 18 1;
+
+#X connect 18 0 19 0;
+#X connect 17 0 19 1;
+
+#X connect 19 0 20 0;
+
+#X connect 21 0 23 0;
+#X connect 22 0 23 1;
+#X connect 23 0 24 0;
+
+#X connect 20 0 25 0;
+#X connect 24 0 25 1;
+
+#X connect 26 0 27 0;
+
+#X connect 25 0 28 0;
+#X connect 27 0 28 1;
+
+#X connect 28 0 29 0;
+#X connect 28 0 29 1;
