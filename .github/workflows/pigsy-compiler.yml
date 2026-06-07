@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-vst3:
-    name: Build VST3/CLAP Binaries
+  build-plugins:
+    name: Build VST3 and CLAP Binaries
     runs-on: ubuntu-latest
 
     steps:
@@ -32,29 +32,41 @@ jobs:
         pip install --upgrade pip
         pip install hvcc
 
-    - name: Extract Dynamic Target Patch From Config
+    - name: Parse Configuration Maps
       id: parse_config
       run: |
-        # Read target_patch_file from config.json using jq
-        PATCH_NAME=$(jq -r '.target_patch_file' config.json)
-        echo "FOUND_PATCH=$PATCH_NAME" >> $GITHUB_ENV
-        echo "Successfully mapped target patch file to: $PATCH_NAME"
+        # Read the folder path and the specific patch file name from config.json
+        FOLDER_PATH=$(jq -r '.folder_path' config.json)
+        PATCH_FILE=$(jq -r '.target_patch_file' config.json)
+        
+        echo "TARGET_DIR=$FOLDER_PATH" >> $GITHUB_ENV
+        echo "TARGET_PATCH=$FOLDER_PATH/$PATCH_FILE" >> $GITHUB_ENV
+        echo "Verified build focus path: $FOLDER_PATH/$PATCH_FILE"
 
-    - name: Process Configuration and Execute Build
+    - name: Translate Pure Data to C++ Source Code
       run: |
         mkdir -p build
-        # Run Heavy compiler using the dynamically extracted patch variable
-        python3 -m hvcc "${{ env.FOUND_PATCH }}" -g dpf -o build/compiled_source
+        # Compile the patch using the combined folder and file variables
+        python3 -m hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
         
-    - name: Compile C++ Source Code to VST3
+    - name: Package Embedded Image Assets
+      run: |
+        # Automatically copies any PNG/JPG assets found in your folder into the build assets directory
+        mkdir -p build/compiled_source/resources
+        find "${{ env.TARGET_DIR }}" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
+        echo "Assets bundled successfully."
+
+    - name: Compile C++ Code into Audio Binary Files
       run: |
         cd build/compiled_source
         mkdir -p cmake-build && cd cmake-build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         make -j$(nproc)
 
-    - name: Gather and Upload Compiled VST3 Artifacts
+    - name: Upload Completed VST3 and CLAP Plugins
       uses: actions/upload-artifact@v4
       with:
-        name: Pigsy-Compiled-Plugins
-        path: build/compiled_source/cmake-build/*.vst3
+        name: Pigsy-Desktop-Plugins
+        path: |
+          build/compiled_source/cmake-build/*.vst3
+          build/compiled_source/cmake-build/*.clap
