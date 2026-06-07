@@ -42,7 +42,7 @@ jobs:
     - name: Translate Pure Data to C++ Source Code
       run: |
         mkdir -p build
-        python3 -m hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
+        hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
         
     - name: Package Embedded Image Assets
       run: |
