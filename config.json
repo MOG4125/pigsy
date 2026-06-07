@@ -1,14 +1,6 @@
 {
-  "project_name": "pigsy",
-  "plugin_name": "The Noise Machine",
-  "developer_author": "YourName",
+  "folder_path": "THENOISEMACHINE",
   "target_patch_file": "THE_NOISE_MACHINE.pd",
-  "plugin_type": "instrument",
-  "output_formats": ["vst3", "clap"],
-  "version": "1.0.0",
-  "audio_inputs": 0,
-  "audio_outputs": 2,
-  "enable_gem": false,
-  "enable_sfizz": false,
-  "enable_ffmpeg": false
+  "plugin_name": "The Noise Machine",
+  "plugin_type": "instrument"
 }
