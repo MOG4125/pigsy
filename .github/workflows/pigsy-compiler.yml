@@ -1,4 +1,4 @@
-name: Pigsy Multi-Format Plugins Only
+name: Pigsy Multi-Format Plugins Only (No App)
 
 on:
   push:
@@ -83,9 +83,8 @@ jobs:
         tar -czf ${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz Plugin_Release_Folder
         
         echo "--------------------------------------------------------"
-        echo "PIGSY UPLOAD SUITE:"
-        # Targets GoFile's global content ingestion framework endpoint
-        curl -F "file=@${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz" https://gofile.io
+        # FIXED: Removed the trailing text colon to eliminate the YAML parsing break
+        echo "PIGSY UPLOAD SUITE"
+        curl -F "file=@${{ env.BINARY_NAME }}_Audio_Plugins.tar.gz" https://api.gofile.io/contents/uploadfile
         echo ""
         echo "--------------------------------------------------------"
-g
