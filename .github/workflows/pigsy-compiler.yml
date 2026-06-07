@@ -3,8 +3,6 @@ name: Pigsy Plugin Compiler
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   build-plugins:
@@ -35,26 +33,21 @@ jobs:
     - name: Parse Configuration Maps
       id: parse_config
       run: |
-        # Read the folder path and the specific patch file name from config.json
         FOLDER_PATH=$(jq -r '.folder_path' config.json)
         PATCH_FILE=$(jq -r '.target_patch_file' config.json)
         
         echo "TARGET_DIR=$FOLDER_PATH" >> $GITHUB_ENV
         echo "TARGET_PATCH=$FOLDER_PATH/$PATCH_FILE" >> $GITHUB_ENV
-        echo "Verified build focus path: $FOLDER_PATH/$PATCH_FILE"
 
     - name: Translate Pure Data to C++ Source Code
       run: |
         mkdir -p build
-        # Compile the patch using the combined folder and file variables
         python3 -m hvcc "${{ env.TARGET_PATCH }}" -g dpf -o build/compiled_source
         
     - name: Package Embedded Image Assets
       run: |
-        # Automatically copies any PNG/JPG assets found in your folder into the build assets directory
         mkdir -p build/compiled_source/resources
         find "${{ env.TARGET_DIR }}" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -exec cp {} build/compiled_source/resources/ \;
-        echo "Assets bundled successfully."
 
     - name: Compile C++ Code into Audio Binary Files
       run: |
