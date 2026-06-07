@@ -14,13 +14,11 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Verify Submodules
+      - name: Manual Submodule Init
         run: |
-          ls -R
-          git submodule status
+          git submodule update --init --recursive
+          ls -R  # This will list files to confirm cplug exists
 
       - name: Build
         run: |
