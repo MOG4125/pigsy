@@ -1,0 +1,29 @@
+name: Build Pigsy Plugin
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake ..
+          cmake --build . --config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pigsy-Plugin-${{ matrix.os }}
+          path: build/
